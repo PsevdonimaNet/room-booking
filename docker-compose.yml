@@ -23,12 +23,21 @@ services:
 
   web:
     build: .
-    command: sh -c "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    command: sh -c "rm -rf /tmp/prom && mkdir -p /tmp/prom && python manage.py migrate && gunicorn config.wsgi:application -c gunicorn.conf.py"
     env_file: .env
+    environment:
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prom
     ports:
       - "8000:8000"
     volumes:
       - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health/', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy

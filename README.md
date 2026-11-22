@@ -74,6 +74,17 @@ USE_SQLITE=1 python manage.py runserver
 ```
 (PowerShell: `$env:USE_SQLITE="1"` перед командами)
 
+## Мониторинг и нагрузочное тестирование
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up --build -d
+docker compose exec web python manage.py seed_demo --load-users 20
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml --profile load run --rm k6
+```
+
+Prometheus: http://localhost:9090, Grafana: http://localhost:3000 (admin / admin), метрики: `/metrics`.
+Подробности, SLA, алерты и методика стресс-теста: `docs/monitoring-and-testing.md`.
+
 ## Структура
 
 ```

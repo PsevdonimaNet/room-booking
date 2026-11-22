@@ -1,0 +1,49 @@
+# Мониторинг и нагрузочное тестирование. Запуск вместе с основным файлом:
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up --build -d
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - web
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-booking}:${POSTGRES_PASSWORD:-booking}@db:5432/${POSTGRES_DB:-booking}?sslmode=disable"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/booking.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  k6:
+    image: grafana/k6:0.54.0
+    profiles: ["load"]
+    environment:
+      BASE_URL: http://web:8000
+      LOAD_USERS: "20"
+    volumes:
+      - ./loadtests:/scripts
+    command: run /scripts/booking.js --summary-export=/scripts/results/summary.json
+    depends_on:
+      web:
+        condition: service_healthy

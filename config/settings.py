@@ -6,6 +6,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure-key")
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# "web" - внутреннее имя сервиса в Docker-сети (Prometheus и k6 обращаются по нему)
+if "web" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append("web")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -14,6 +17,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_prometheus",
     "rest_framework",
     "drf_spectacular",
     "core",
@@ -22,7 +26,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -30,6 +36,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.middleware.RequestLogMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
+    "core.middleware.DatabaseGuardMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -55,18 +63,23 @@ WSGI_APPLICATION = "config.wsgi.application"
 if os.environ.get("USE_SQLITE") == "1":
     # Запасной режим для локальной разработки без Docker/PostgreSQL.
     DATABASES = {
-        "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}
+        "default": {
+            "ENGINE": "django_prometheus.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
 else:
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.postgresql",
+            "ENGINE": "django_prometheus.db.backends.postgresql",
             "NAME": os.environ.get("POSTGRES_DB", "booking"),
             "USER": os.environ.get("POSTGRES_USER", "booking"),
             "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "booking"),
             "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
             "PORT": os.environ.get("POSTGRES_PORT", "5432"),
             "CONN_MAX_AGE": 60,
+            # Быстрый отказ при недоступной БД вместо зависания запросов
+            "OPTIONS": {"connect_timeout": 2, "options": "-c statement_timeout=10000"},
         }
     }
 
@@ -97,6 +110,10 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_URL = "/accounts/login/"
@@ -124,7 +141,7 @@ LOGGING = {
             "encoding": "utf-8",
         },
     },
-    "root": {"handlers": ["console", "file"], "level": "INFO"},
+    "root": {"handlers": ["console", "file"], "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO")},
 }
 
 # REST API

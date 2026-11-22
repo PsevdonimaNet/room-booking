@@ -1,0 +1,41 @@
+name: Security
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  bandit:
+    name: Статический анализ безопасности (bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install bandit
+      - run: bandit -r bookings core config web -x "*/tests*.py" -ll
+
+  dependencies:
+    name: Уязвимости в зависимостях (pip-audit)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt
+
+  code-quality:
+    name: Качество кода (расширенные правила ruff, справочно)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check . --select S,C90,SIM,DJ --extend-ignore S101,S105,S106 --statistics --exit-zero

@@ -4,6 +4,8 @@ from django.core.cache import cache
 from django.db import connection
 from django.http import JsonResponse
 
+from . import db_guard
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,6 +26,12 @@ def health(request):
     except Exception:
         logger.exception("Health-check: cache unavailable")
         checks["cache"] = "error"
+
+    # Состояние БД управляет защитой от зависаний (быстрый отказ 503 для остальных запросов)
+    if checks["database"] == "ok":
+        db_guard.reset()
+    else:
+        db_guard.mark_failure()
 
     healthy = all(v == "ok" for v in checks.values())
     return JsonResponse(
