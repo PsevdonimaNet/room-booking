@@ -43,9 +43,36 @@ coverage run manage.py test && coverage report   # тесты и покрыти�
 При каждом push GitHub Actions запускает: линтер -> тесты с покрытием (артефакт `coverage.xml`) -> сборка Docker-образа.
 В ветке `main` образ публикуется в GitHub Container Registry (`ghcr.io/<user>/<repo>:latest`).
 
+## API
+
+Документация (Swagger UI): http://localhost:8000/api/docs/ - кнопка **Authorize**, логин и пароль пользователя.
+Схема OpenAPI: http://localhost:8000/api/schema/
+
+| Метод | Адрес | Описание | Доступ |
+|---|---|---|---|
+| GET | `/api/rooms/` | Список переговорных | все авторизованные |
+| POST/PUT/PATCH/DELETE | `/api/rooms/{id}/` | CRUD комнат (DELETE - мягкое отключение) | администратор |
+| GET | `/api/rooms/{id}/availability/?date=YYYY-MM-DD` | Занятость по часам | все авторизованные |
+| POST | `/api/bookings/` | Бронирование `{room, start, end}` | все авторизованные |
+| GET | `/api/bookings/?room=<id>` | История (свои; админ - все) | все авторизованные |
+| POST | `/api/bookings/{id}/cancel/` | Отмена | владелец или админ |
+
+Правила: целые часы, длительность 1-4 ч, рабочее время 08:00-20:00, не в прошлом.
+Ошибки: `{"error": {"code": "...", "message": "...", "details": {}}}`.
+Коды: 400 `validation_error`, 403 `forbidden`, 409 `booking_conflict` / `invalid_state`.
+
+## Запуск без Docker (запасной вариант)
+
+```bash
+USE_SQLITE=1 python manage.py migrate
+USE_SQLITE=1 python manage.py runserver
+```
+(PowerShell: `$env:USE_SQLITE="1"` перед командами)
+
 ## Структура
 
 ```
 config/   настройки проекта, urls
-core/     общие вещи: health-check
+core/     общие вещи: health-check, логирование запросов
+bookings/ модели, сервисы, API, админка бронирования
 ```

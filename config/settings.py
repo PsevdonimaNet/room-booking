@@ -14,7 +14,10 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    "drf_spectacular",
     "core",
+    "bookings",
 ]
 
 MIDDLEWARE = [
@@ -25,6 +28,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "core.middleware.RequestLogMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -46,17 +50,23 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "booking"),
-        "USER": os.environ.get("POSTGRES_USER", "booking"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "booking"),
-        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-        "CONN_MAX_AGE": 60,
+if os.environ.get("USE_SQLITE") == "1":
+    # Запасной режим для локальной разработки без Docker/PostgreSQL.
+    DATABASES = {
+        "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("POSTGRES_DB", "booking"),
+            "USER": os.environ.get("POSTGRES_USER", "booking"),
+            "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "booking"),
+            "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+            "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+            "CONN_MAX_AGE": 60,
+        }
+    }
 
 # Redis: кэш и сессии. Если REDIS_URL не задан - локальный кэш в памяти.
 REDIS_URL = os.environ.get("REDIS_URL")
@@ -113,3 +123,27 @@ LOGGING = {
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
 }
+
+# REST API
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "bookings.exceptions.api_exception_handler",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Room Booking API",
+    "DESCRIPTION": "API бронирования переговорных комнат",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
+
+# Правила бронирования
+BOOKING_OPEN_HOUR = 8
+BOOKING_CLOSE_HOUR = 20
+BOOKING_MIN_HOURS = 1
+BOOKING_MAX_HOURS = 4
