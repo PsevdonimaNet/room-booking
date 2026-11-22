@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Пользователи и роли{% endblock %}
+{% block content %}
+<h1>Пользователи и роли</h1>
+<table>
+  <thead><tr><th>Логин</th><th>Почта</th><th>Роль</th><th></th></tr></thead>
+  <tbody>
+    {% for u in users %}
+      <tr>
+        <td>{{ u.username }}</td>
+        <td>{{ u.email }}</td>
+        <td colspan="2">
+          <form class="inline-form" method="post" action="{% url 'set_role' u.pk %}">
+            {% csrf_token %}
+            <select name="role">
+              {% for role in roles %}
+                <option value="{{ role.code }}" {% if u.profile.role_id == role.id %}selected{% endif %}>{{ role.name }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn small" type="submit">Назначить</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

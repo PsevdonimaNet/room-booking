@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Управление комнатами{% endblock %}
+{% block content %}
+<h1>Управление комнатами</h1>
+<p><a class="btn" href="{% url 'room_create' %}">Добавить комнату</a></p>
+<table>
+  <thead><tr><th>Название</th><th>Вместимость</th><th>Расположение</th><th>Статус</th><th></th></tr></thead>
+  <tbody>
+    {% for room in rooms %}
+      <tr>
+        <td>{{ room.name }}</td>
+        <td>{{ room.capacity }}</td>
+        <td>{{ room.location }}</td>
+        <td>{% if room.is_active %}<span class="badge confirmed">активна</span>{% else %}<span class="badge cancelled">отключена</span>{% endif %}</td>
+        <td><a class="btn secondary small" href="{% url 'room_edit' room.pk %}">Изменить</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="muted">Комнат пока нет.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

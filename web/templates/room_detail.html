@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ room.name }}{% endblock %}
+{% block content %}
+<h1>{{ room.name }}</h1>
+<p class="muted">Вместимость: {{ room.capacity }} чел.{% if room.location %} &middot; {{ room.location }}{% endif %}</p>
+{% if room.description %}<p>{{ room.description }}</p>{% endif %}
+
+<div class="card">
+  <h3>Занятость на {{ day|date:"d.m.Y" }}</h3>
+  <div class="daynav">
+    <a class="btn secondary small" href="?date={{ prev_day|date:'Y-m-d' }}">&larr; Предыдущий день</a>
+    <a class="btn secondary small" href="?date={{ next_day|date:'Y-m-d' }}">Следующий день &rarr;</a>
+  </div>
+  <div class="slots">
+    {% for slot in slots %}
+      <div class="slot {% if slot.busy %}busy{% else %}free{% endif %}">
+        {{ slot.hour|stringformat:"02d" }}:00
+        <small>{% if slot.busy %}занято{% else %}свободно{% endif %}</small>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h3>Забронировать</h3>
+  {% if room.is_active %}
+  <form class="inline-form" method="post" action="{% url 'book_room' room.pk %}">
+    {% csrf_token %}
+    <div>{{ form.date.label_tag }}{{ form.date }}</div>
+    <div>{{ form.start_hour.label_tag }}{{ form.start_hour }}</div>
+    <div>{{ form.duration.label_tag }}{{ form.duration }}</div>
+    <button class="btn" type="submit">Забронировать</button>
+  </form>
+  <p class="muted">Бронирование на целые часы, от 1 до 4 часов, рабочее время 08:00-20:00.</p>
+  {% else %}
+    <p class="muted">Комната отключена и недоступна для бронирования.</p>
+  {% endif %}
+</div>
+<p><a href="{% url 'rooms' %}">&larr; Ко всем комнатам</a></p>
+{% endblock %}

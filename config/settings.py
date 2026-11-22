@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "core",
     "bookings",
+    "web",
 ]
 
 MIDDLEWARE = [
@@ -43,6 +44,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "web.context.user_role",
             ],
         },
     },
@@ -98,7 +100,8 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_URL = "/accounts/login/"
-LOGIN_REDIRECT_URL = "/"
+LOGIN_REDIRECT_URL = "/rooms/"
+LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 # Логирование: консоль + файл (логи действий пользователей и ошибок)
 LOG_DIR = BASE_DIR / "logs"

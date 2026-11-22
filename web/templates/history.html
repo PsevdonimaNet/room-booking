@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Мои бронирования{% endblock %}
+{% block content %}
+<h1>{% if is_admin %}Все бронирования{% else %}Мои бронирования{% endif %}</h1>
+<table>
+  <thead>
+    <tr><th>Комната</th>{% if is_admin %}<th>Пользователь</th>{% endif %}<th>Начало</th><th>Конец</th><th>Статус</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for b in bookings %}
+      <tr>
+        <td>{{ b.room.name }}</td>
+        {% if is_admin %}<td>{{ b.user.username }}</td>{% endif %}
+        <td>{{ b.start|date:"d.m.Y H:i" }}</td>
+        <td>{{ b.end|date:"d.m.Y H:i" }}</td>
+        <td><span class="badge {{ b.status }}">{{ b.get_status_display }}</span></td>
+        <td>
+          {% if b.status == "confirmed" and b.end > now %}
+            <form method="post" action="{% url 'cancel_booking' b.pk %}">
+              {% csrf_token %}<button class="btn danger small" type="submit">Отменить</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="muted">Бронирований пока нет.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

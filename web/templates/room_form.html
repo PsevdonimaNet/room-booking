@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{% if room %}Изменить комнату{% else %}Новая комната{% endif %}{% endblock %}
+{% block content %}
+<h1>{% if room %}Изменить комнату «{{ room.name }}»{% else %}Новая комната{% endif %}</h1>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="btn" type="submit">Сохранить</button>
+    <a class="btn secondary" href="{% url 'manage_rooms' %}">Отмена</a>
+  </form>
+</div>
+{% endblock %}
