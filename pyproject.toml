@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["*/migrations/*", "manage.py", "config/wsgi.py", "config/asgi.py", "*/tests*.py"]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
