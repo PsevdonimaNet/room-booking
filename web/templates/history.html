@@ -15,11 +15,11 @@
         <td>{{ b.end|date:"d.m.Y H:i" }}</td>
         <td><span class="badge {{ b.status }}">{{ b.get_status_display }}</span></td>
         <td>
-          {% if b.status == "confirmed" and b.end > now %}
+          {% if b.status == "confirmed" or b.status == "pending" %}{% if b.end > now %}
             <form method="post" action="{% url 'cancel_booking' b.pk %}">
               {% csrf_token %}<button class="btn danger small" type="submit">Отменить</button>
             </form>
-          {% endif %}
+          {% endif %}{% endif %}
         </td>
       </tr>
     {% empty %}

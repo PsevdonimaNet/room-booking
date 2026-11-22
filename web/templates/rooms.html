@@ -5,7 +5,7 @@
 <div class="grid">
   {% for room in rooms %}
     <div class="card">
-      <h3>{{ room.name }}{% if not room.is_active %} <span class="badge cancelled">отключена</span>{% endif %}</h3>
+      <h3>{{ room.name }}{% if room.is_vip %} <span class="badge pending">VIP</span>{% endif %}{% if not room.is_active %} <span class="badge cancelled">отключена</span>{% endif %}</h3>
       <div class="muted">Вместимость: {{ room.capacity }} чел.{% if room.location %} &middot; {{ room.location }}{% endif %}</div>
       {% if room.description %}<p>{{ room.description }}</p>{% endif %}
       <a class="btn" href="{% url 'room_detail' room.pk %}">Занятость и бронь</a>

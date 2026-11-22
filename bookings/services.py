@@ -12,6 +12,7 @@ from .exceptions import (
     PermissionDeniedError,
 )
 from .models import Booking, Role, Room
+from .notifications import describe, notify, notify_admins
 
 logger = logging.getLogger("bookings")
 
@@ -61,40 +62,63 @@ def create_booking(user, room, start, end):
     if not room.is_active:
         raise BookingValidationError("Эта переговорная недоступна для бронирования.")
 
+    conflict = booking = None
     with transaction.atomic():
         # Блокируем строку комнаты: параллельные запросы на одну комнату выполняются по очереди,
         # поэтому двойное бронирование невозможно.
         Room.objects.select_for_update().get(pk=room.pk)
+        # Занятым считается время и подтверждённых, и ожидающих подтверждения броней.
         conflict = Booking.objects.filter(
-            room=room, status=Booking.Status.CONFIRMED, start__lt=end, end__gt=start
+            room=room, status__in=Booking.ACTIVE_STATUSES, start__lt=end, end__gt=start
         ).first()
-        if conflict:
-            logger.warning(
-                "Конфликт бронирования: user=%s room=%s %s-%s пересекается с booking=%s",
-                user.username,
-                room.id,
-                start.isoformat(),
-                end.isoformat(),
-                conflict.id,
+        if conflict is None:
+            status = Booking.Status.PENDING if room.is_vip else Booking.Status.CONFIRMED
+            booking = Booking.objects.create(
+                user=user, room=room, start=start, end=end, status=status
             )
-            raise BookingConflict(
-                "Переговорная уже занята на выбранное время.",
-                details={
-                    "conflicting_booking_id": conflict.id,
-                    "start": conflict.start.isoformat(),
-                    "end": conflict.end.isoformat(),
-                },
+
+    # Уведомления создаём вне блока atomic: иначе они откатились бы вместе с ошибкой.
+    if conflict is not None:
+        logger.warning(
+            "Конфликт бронирования: user=%s room=%s %s-%s пересекается с booking=%s",
+            user.username,
+            room.id,
+            start.isoformat(),
+            end.isoformat(),
+            conflict.id,
+        )
+        what = describe(room, start, end)
+        notify(user, f"Не удалось забронировать {what}: время уже занято.")
+        if conflict.user_id != user.id:
+            notify(
+                conflict.user,
+                f"Попытка двойного бронирования: другой пользователь пытался забронировать "
+                f"{what}, что пересекается с вашей бронью №{conflict.id}.",
             )
-        booking = Booking.objects.create(user=user, room=room, start=start, end=end)
+        raise BookingConflict(
+            "Переговорная уже занята на выбранное время.",
+            details={
+                "conflicting_booking_id": conflict.id,
+                "start": conflict.start.isoformat(),
+                "end": conflict.end.isoformat(),
+            },
+        )
 
     logger.info(
-        "Бронирование создано: id=%s user=%s room=%s %s-%s",
+        "Бронирование создано: id=%s user=%s room=%s status=%s %s-%s",
         booking.id,
         user.username,
         room.id,
+        booking.status,
         start.isoformat(),
         end.isoformat(),
     )
+    if booking.status == Booking.Status.PENDING:
+        notify_admins(
+            f"Новая заявка на VIP-комнату от {user.username}: {describe(room, start, end)}. "
+            f"Требуется подтверждение.",
+            exclude=user,
+        )
     return booking
 
 
@@ -103,6 +127,8 @@ def cancel_booking(user, booking):
         raise PermissionDeniedError("Нельзя отменить чужое бронирование.")
     if booking.status == Booking.Status.CANCELLED:
         raise BookingStateError("Бронирование уже отменено.")
+    if booking.status == Booking.Status.REJECTED:
+        raise BookingStateError("Бронирование отклонено администратором, отменять нечего.")
     if booking.end <= timezone.now():
         raise BookingStateError("Нельзя отменить завершённое бронирование.")
 
@@ -113,6 +139,33 @@ def cancel_booking(user, booking):
     return booking
 
 
+def _decide(user, booking, new_status, check_future):
+    if not is_admin(user):
+        raise PermissionDeniedError("Подтверждать и отклонять брони могут только администраторы.")
+    if booking.status != Booking.Status.PENDING:
+        raise BookingStateError("Бронирование не ожидает подтверждения.")
+    if check_future and booking.end <= timezone.now():
+        raise BookingStateError("Время бронирования уже прошло, подтвердить нельзя.")
+    booking.status = new_status
+    booking.save(update_fields=["status"])
+
+
+def approve_booking(user, booking):
+    _decide(user, booking, Booking.Status.CONFIRMED, check_future=True)
+    logger.info("Бронирование подтверждено: id=%s admin=%s", booking.id, user.username)
+    what = describe(booking.room, booking.start, booking.end)
+    notify(booking.user, f"Ваше бронирование {what} подтверждено администратором.")
+    return booking
+
+
+def reject_booking(user, booking):
+    _decide(user, booking, Booking.Status.REJECTED, check_future=False)
+    logger.info("Бронирование отклонено: id=%s admin=%s", booking.id, user.username)
+    what = describe(booking.room, booking.start, booking.end)
+    notify(booking.user, f"Ваше бронирование {what} отклонено администратором.")
+    return booking
+
+
 def get_availability(room, day):
     """Занятость комнаты по часам на указанную дату (локальное время)."""
     open_hour, close_hour = settings.BOOKING_OPEN_HOUR, settings.BOOKING_CLOSE_HOUR
@@ -120,7 +173,7 @@ def get_availability(room, day):
     day_end = timezone.make_aware(datetime.combine(day, time(close_hour)))
     bookings = list(
         Booking.objects.filter(
-            room=room, status=Booking.Status.CONFIRMED, start__lt=day_end, end__gt=day_start
+            room=room, status__in=Booking.ACTIVE_STATUSES, start__lt=day_end, end__gt=day_start
         )
     )
     slots = []
@@ -135,6 +188,7 @@ def get_availability(room, day):
                 "end": slot_end.isoformat(),
                 "busy": busy_with is not None,
                 "booking_id": busy_with.id if busy_with else None,
+                "pending": busy_with is not None and busy_with.status == Booking.Status.PENDING,
             }
         )
     return slots

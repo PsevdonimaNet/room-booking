@@ -4,6 +4,7 @@
 <h1>{{ room.name }}</h1>
 <p class="muted">Вместимость: {{ room.capacity }} чел.{% if room.location %} &middot; {{ room.location }}{% endif %}</p>
 {% if room.description %}<p>{{ room.description }}</p>{% endif %}
+{% if room.is_vip %}<p><span class="badge pending">VIP</span> Бронирование этой комнаты подтверждает администратор.</p>{% endif %}
 
 <div class="card">
   <h3>Занятость на {{ day|date:"d.m.Y" }}</h3>
@@ -15,7 +16,7 @@
     {% for slot in slots %}
       <div class="slot {% if slot.busy %}busy{% else %}free{% endif %}">
         {{ slot.hour|stringformat:"02d" }}:00
-        <small>{% if slot.busy %}занято{% else %}свободно{% endif %}</small>
+        <small>{% if slot.busy %}занято{% if slot.pending %} (ожидает){% endif %}{% else %}свободно{% endif %}</small>
       </div>
     {% endfor %}
   </div>

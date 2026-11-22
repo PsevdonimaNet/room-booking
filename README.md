@@ -56,6 +56,11 @@ coverage run manage.py test && coverage report   # тесты и покрыти�
 | POST | `/api/bookings/` | Бронирование `{room, start, end}` | все авторизованные |
 | GET | `/api/bookings/?room=<id>` | История (свои; админ - все) | все авторизованные |
 | POST | `/api/bookings/{id}/cancel/` | Отмена | владелец или админ |
+| POST | `/api/bookings/{id}/approve/`, `/reject/` | Подтвердить / отклонить бронь VIP-комнаты | администратор |
+| GET | `/api/bookings/export/?date_from=&date_to=&room=&status=` | Экспорт в CSV (UTF-8 BOM, разделитель `;`) | администратор |
+
+VIP-комнаты (`is_vip`): бронь создаётся со статусом `pending` и ждёт решения администратора.
+Статусы: `pending`, `confirmed`, `cancelled`, `rejected`. Ожидающая бронь занимает слот.
 
 Правила: целые часы, длительность 1-4 ч, рабочее время 08:00-20:00, не в прошлом.
 Ошибки: `{"error": {"code": "...", "message": "...", "details": {}}}`.

@@ -10,12 +10,13 @@ from bookings.models import Room
 class RoomForm(forms.ModelForm):
     class Meta:
         model = Room
-        fields = ["name", "capacity", "location", "description", "is_active"]
+        fields = ["name", "capacity", "location", "description", "is_vip", "is_active"]
         labels = {
             "name": "Название",
             "capacity": "Вместимость (человек)",
             "location": "Расположение",
             "description": "Описание",
+            "is_vip": "VIP (бронь требует подтверждения администратора)",
             "is_active": "Доступна для бронирования",
         }
         widgets = {"description": forms.Textarea(attrs={"rows": 3})}

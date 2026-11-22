@@ -15,7 +15,15 @@ from django.views.decorators.http import require_POST
 
 from bookings.exceptions import DomainError
 from bookings.models import Booking, Profile, Role, Room
-from bookings.services import cancel_booking, create_booking, get_availability, is_admin
+from bookings.reports import build_summary, csv_response, filter_bookings, parse_filters
+from bookings.services import (
+    approve_booking,
+    cancel_booking,
+    create_booking,
+    get_availability,
+    is_admin,
+    reject_booking,
+)
 
 from .forms import BookingForm, RoomForm
 
@@ -99,12 +107,18 @@ def book_room(request, pk):
     day = form.cleaned_data["date"]
     start, end = form.interval()
     try:
-        create_booking(request.user, room, start, end)
+        booking = create_booking(request.user, room, start, end)
     except DomainError as error:
         messages.error(request, error.message)
         return redirect(_room_url(room, day))
 
-    messages.success(request, f"Переговорная «{room.name}» забронирована.")
+    if booking.status == Booking.Status.PENDING:
+        messages.success(
+            request,
+            f"Заявка на «{room.name}» отправлена и ожидает подтверждения администратором.",
+        )
+    else:
+        messages.success(request, f"Переговорная «{room.name}» забронирована.")
     return redirect("history")
 
 
@@ -169,3 +183,77 @@ def set_role(request, pk):
         logger.info("Роль изменена: user=%s role=%s by=%s", user.username, role.code, request.user)
         messages.success(request, f"Пользователю {user.username} назначена роль «{role.name}».")
     return redirect("manage_users")
+
+
+@login_required
+def notifications(request):
+    items = list(request.user.notifications.all()[:50])
+    request.user.notifications.filter(is_read=False).update(is_read=True)
+    return render(request, "notifications.html", {"items": items})
+
+
+@admin_required
+def pending(request):
+    bookings = (
+        Booking.objects.filter(status=Booking.Status.PENDING)
+        .select_related("room", "user")
+        .order_by("start")
+    )
+    return render(request, "pending.html", {"bookings": bookings})
+
+
+def _decide(request, pk, action, success_text):
+    booking = get_object_or_404(Booking.objects.select_related("room", "user"), pk=pk)
+    try:
+        action(request.user, booking)
+    except DomainError as error:
+        messages.error(request, error.message)
+    else:
+        messages.success(request, success_text)
+    return redirect("pending")
+
+
+@admin_required
+@require_POST
+def approve(request, pk):
+    return _decide(request, pk, approve_booking, "Бронирование подтверждено.")
+
+
+@admin_required
+@require_POST
+def reject(request, pk):
+    return _decide(request, pk, reject_booking, "Бронирование отклонено.")
+
+
+@admin_required
+def report(request):
+    summary, bookings = [], []
+    try:
+        filters = parse_filters(request.GET)
+        queryset = filter_bookings(Booking.objects.select_related("room", "user"), filters)
+        summary = build_summary(queryset)
+        bookings = list(queryset[:100])
+    except DomainError as error:
+        messages.error(request, error.message)
+    context = {
+        "summary": summary,
+        "total": sum(row["total"] for row in summary),
+        "bookings": bookings,
+        "rooms": Room.objects.all(),
+        "statuses": Booking.Status.choices,
+        "values": request.GET,
+        "query": request.GET.urlencode(),
+    }
+    return render(request, "report.html", context)
+
+
+@admin_required
+def report_csv(request):
+    try:
+        filters = parse_filters(request.GET)
+    except DomainError as error:
+        messages.error(request, error.message)
+        return redirect("report")
+    queryset = filter_bookings(Booking.objects.all(), filters)
+    logger.info("Экспорт CSV из веб-интерфейса: by=%s filters=%s", request.user, filters)
+    return csv_response(queryset)

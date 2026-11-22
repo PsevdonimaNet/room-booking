@@ -41,6 +41,8 @@ class Room(models.Model):
     location = models.CharField(max_length=200, blank=True)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+    # VIP-комната: бронирование требует подтверждения администратором
+    is_vip = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["name"]
@@ -53,8 +55,13 @@ class Room(models.Model):
 
 class Booking(models.Model):
     class Status(models.TextChoices):
+        PENDING = "pending", "Ожидает подтверждения"
         CONFIRMED = "confirmed", "Подтверждено"
         CANCELLED = "cancelled", "Отменено"
+        REJECTED = "rejected", "Отклонено"
+
+    # Статусы, при которых время в комнате считается занятым
+    ACTIVE_STATUSES = (Status.PENDING, Status.CONFIRMED)
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="bookings"
@@ -80,3 +87,22 @@ class Booking(models.Model):
 
     def __str__(self):
         return f"{self.room} {self.start:%d.%m.%Y %H:%M}-{self.end:%H:%M}"
+
+
+class Notification(models.Model):
+    """Уведомление внутри системы (о конфликтах, заявках, решениях администратора)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"
+    )
+    text = models.CharField(max_length=300)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Уведомление"
+        verbose_name_plural = "Уведомления"
+
+    def __str__(self):
+        return f"{self.user}: {self.text[:40]}"

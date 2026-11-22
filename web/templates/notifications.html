@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Уведомления{% endblock %}
+{% block content %}
+<h1>Уведомления</h1>
+{% for item in items %}
+  <div class="card {% if not item.is_read %}unread{% endif %}" style="margin-bottom:10px">
+    {{ item.text }}
+    <div class="muted">{{ item.created_at|date:"d.m.Y H:i" }}</div>
+  </div>
+{% empty %}
+  <p class="muted">Уведомлений пока нет.</p>
+{% endfor %}
+{% endblock %}

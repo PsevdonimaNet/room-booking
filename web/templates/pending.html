@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Заявки на подтверждение{% endblock %}
+{% block content %}
+<h1>Заявки на подтверждение (VIP-комнаты)</h1>
+<table>
+  <thead><tr><th>Комната</th><th>Пользователь</th><th>Начало</th><th>Конец</th><th></th></tr></thead>
+  <tbody>
+    {% for b in bookings %}
+      <tr>
+        <td>{{ b.room.name }}</td>
+        <td>{{ b.user.username }}</td>
+        <td>{{ b.start|date:"d.m.Y H:i" }}</td>
+        <td>{{ b.end|date:"d.m.Y H:i" }}</td>
+        <td>
+          <form method="post" action="{% url 'approve_booking' b.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn small" type="submit">Подтвердить</button>
+          </form>
+          <form method="post" action="{% url 'reject_booking' b.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn danger small" type="submit">Отклонить</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="muted">Заявок, ожидающих подтверждения, нет.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

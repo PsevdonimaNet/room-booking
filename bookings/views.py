@@ -8,11 +8,19 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .exceptions import BookingValidationError
+from .exceptions import BookingValidationError, PermissionDeniedError
 from .models import Booking, Room
 from .permissions import IsAdminOrReadOnly
+from .reports import csv_response, filter_bookings, parse_filters
 from .serializers import BookingCreateSerializer, BookingSerializer, RoomSerializer
-from .services import cancel_booking, create_booking, get_availability, is_admin
+from .services import (
+    approve_booking,
+    cancel_booking,
+    create_booking,
+    get_availability,
+    is_admin,
+    reject_booking,
+)
 
 logger = logging.getLogger("bookings")
 
@@ -81,6 +89,11 @@ class BookingViewSet(
             if not room.isdigit():
                 raise BookingValidationError("Параметр room должен быть числом.")
             queryset = queryset.filter(room_id=int(room))
+        status_value = self.request.query_params.get("status")
+        if status_value:
+            if status_value not in Booking.Status.values:
+                raise BookingValidationError("Неизвестный статус бронирования.")
+            queryset = queryset.filter(status=status_value)
         return queryset
 
     @extend_schema(request=BookingCreateSerializer, responses={201: BookingSerializer})
@@ -95,3 +108,36 @@ class BookingViewSet(
     def cancel(self, request, pk=None):
         booking = cancel_booking(request.user, self.get_object())
         return Response(BookingSerializer(booking).data)
+
+    @extend_schema(request=None, responses=BookingSerializer)
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        """Подтвердить бронирование VIP-комнаты (только администратор)."""
+        booking = approve_booking(request.user, self.get_object())
+        return Response(BookingSerializer(booking).data)
+
+    @extend_schema(request=None, responses=BookingSerializer)
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        """Отклонить бронирование VIP-комнаты (только администратор)."""
+        booking = reject_booking(request.user, self.get_object())
+        return Response(BookingSerializer(booking).data)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("date_from", OpenApiTypes.DATE, description="YYYY-MM-DD"),
+            OpenApiParameter("date_to", OpenApiTypes.DATE, description="YYYY-MM-DD"),
+            OpenApiParameter("room", OpenApiTypes.INT),
+            OpenApiParameter("status", OpenApiTypes.STR),
+        ],
+        responses=OpenApiTypes.BINARY,
+    )
+    @action(detail=False, methods=["get"])
+    def export(self, request):
+        """Экспорт бронирований в CSV с фильтрами (только администратор)."""
+        if not is_admin(request.user):
+            raise PermissionDeniedError("Экспорт доступен только администраторам.")
+        filters = parse_filters(request.query_params)
+        queryset = filter_bookings(Booking.objects.all(), filters)
+        logger.info("Экспорт CSV: by=%s filters=%s", request.user.username, filters)
+        return csv_response(queryset)
