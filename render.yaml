@@ -1,0 +1,61 @@
+# Blueprint для Render: бесплатный веб-сервис + бесплатная БД PostgreSQL.
+# Кэш и сессии работают в памяти процесса (REDIS_URL не задан), поэтому используется 1 процесс gunicorn.
+databases:
+  - name: booking-db
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: room-booking
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health/
+    dockerCommand: >-
+      sh -c "python manage.py migrate --noinput
+      && python manage.py seed_demo
+      && (python manage.py createsuperuser --noinput || true)
+      && exec gunicorn config.wsgi:application -c gunicorn.conf.py"
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "0"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: "*"
+      - key: DJANGO_BEHIND_PROXY
+        value: "1"
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        value: "https://*.onrender.com"
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: WEB_THREADS
+        value: "4"
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: admin
+      - key: DJANGO_SUPERUSER_EMAIL
+        value: admin@example.com
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: booking-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: booking-db
+          property: port
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: booking-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: booking-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: booking-db
+          property: password

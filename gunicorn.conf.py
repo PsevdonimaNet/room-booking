@@ -1,6 +1,6 @@
 import os
 
-bind = "0.0.0.0:8000"
+bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"  # PORT задаёт хостинг (Render)
 workers = int(os.environ.get("WEB_CONCURRENCY", "4"))
 threads = int(os.environ.get("WEB_THREADS", "4"))
 worker_class = "gthread"

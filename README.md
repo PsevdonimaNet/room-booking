@@ -85,6 +85,10 @@ docker compose -f docker-compose.yml -f docker-compose.monitoring.yml --profile 
 Prometheus: http://localhost:9090, Grafana: http://localhost:3000 (admin / admin), метрики: `/metrics`.
 Подробности, SLA, алерты и методика стресс-теста: `docs/monitoring-and-testing.md`.
 
+## Публикация демо-стенда
+
+Бесплатный хостинг (Render) и временная ссылка (Cloudflare Tunnel): `docs/deployment.md`, настройки Render: `render.yaml`.
+
 ## Структура
 
 ```

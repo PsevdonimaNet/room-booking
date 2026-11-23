@@ -167,3 +167,12 @@ BOOKING_OPEN_HOUR = 8
 BOOKING_CLOSE_HOUR = 20
 BOOKING_MIN_HOURS = 1
 BOOKING_MAX_HOURS = 4
+
+# Работа за обратным прокси с HTTPS (Render, Cloudflare Tunnel)
+CSRF_TRUSTED_ORIGINS = [
+    origin for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if origin
+]
+if os.environ.get("DJANGO_BEHIND_PROXY") == "1":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
