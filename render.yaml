@@ -13,11 +13,7 @@ services:
     plan: free
     region: frankfurt
     healthCheckPath: /health/
-    dockerCommand: >-
-      sh -c "python manage.py migrate --noinput
-      && python manage.py seed_demo
-      && (python manage.py createsuperuser --noinput || true)
-      && exec gunicorn config.wsgi:application -c gunicorn.conf.py"
+    dockerCommand: /app/start.sh
     envVars:
       - key: DJANGO_DEBUG
         value: "0"
